@@ -1,0 +1,75 @@
+# Ambiente virtual
+.venv/
+__pycache__/
+*.pyc
+
+# Banco de dados SQLite
+*.sqlite3
+
+# Configurações do VSCode
+.vscode/
+
+# Arquivos temporários
+*.log
+*.pot
+*.pyc
+*.pyo
+*.swp
+*.DS_Store
+.env
+
+# Docker
+*.pid
+*.tar
+*.bak
+*.tmp
+*.old
+
+# Pastas do Django
+staticfiles/
+media/
+
+# Ambiente virtual (mantém na raiz caso use na raiz)
+.venv/
+__pycache__/
+*.pyc
+
+# Banco de dados SQLite
+*.sqlite3
+backend/db.sqlite3  # redundante mas explícito
+
+# Configurações do VSCode
+.vscode/
+
+# Arquivos temporários
+*.log
+*.pot
+*.pyo
+*.swp
+*.DS_Store
+
+# Arquivos de ambiente
+.env
+backend/.env
+
+# Docker
+*.pid
+*.tar
+*.bak
+*.tmp
+*.old
+
+# Django estáticos
+staticfiles/
+media/
+
+# Node.js / Frontend (no futuro)
+node_modules/
+dist/
+frontend/.env
+frontend/.env.*
+frontend/build/
+
+# Documentação
+docs/
+venv/
