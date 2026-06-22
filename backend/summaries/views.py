@@ -276,6 +276,125 @@ class DailySummaryViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=False, methods=['post'])
+    def transcribe_audio(self, request):
+        """Transcreve um arquivo de áudio enviado usando a IA Gemini."""
+        audio_file = request.FILES.get('audio')
+        if not audio_file:
+            return Response(
+                {"error": "Nenhum arquivo de áudio enviado."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return Response(
+                {"error": "Chave GEMINI_API_KEY não configurada no arquivo .env do Backend."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"))
+            
+            audio_bytes = audio_file.read()
+            mime_type = audio_file.content_type
+            if not mime_type or mime_type == 'application/octet-stream':
+                ext = os.path.splitext(audio_file.name)[1].lower()
+                if ext == '.m4a':
+                    mime_type = 'audio/m4a'
+                elif ext == '.wav':
+                    mime_type = 'audio/wav'
+                elif ext == '.mp3':
+                    mime_type = 'audio/mp3'
+                elif ext == '.caf':
+                    mime_type = 'audio/x-caf'
+                else:
+                    mime_type = 'audio/wav'
+            
+            prompt = (
+                "Por favor, transcreva o áudio a seguir na íntegra. "
+                "Retorne apenas o texto transcrito em português, sem qualquer preâmbulo, explicação ou comentário adicional."
+            )
+            
+            response = model.generate_content([
+                {
+                    'mime_type': mime_type,
+                    'data': audio_bytes
+                },
+                prompt
+            ])
+            
+            transcription = response.text.strip()
+            return Response({"transcription": transcription})
+            
+        except Exception as e:
+            return Response(
+                {"error": f"Erro ao transcrever áudio com Gemini: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'])
+    def generate_feedback(self, request, pk=None):
+        """Gera feedback acadêmico e tópicos sugeridos para o resumo usando a IA Gemini."""
+        summary = self.get_object()
+        
+        content = f"Título: {summary.title}\nConteúdo: {summary.content}"
+        
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return Response(
+                {"error": "Chave GEMINI_API_KEY não configurada no arquivo .env do Backend."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"))
+            
+            prompt = (
+                "Você é um tutor acadêmico de alta performance. Analise o seguinte resumo de estudos feito por um aluno "
+                "e forneça um feedback pedagógico construtivo para ajudá-lo a fixar o conteúdo. Além disso, sugira "
+                "uma lista de tópicos/assuntos relacionados que ele deve estudar em seguida para aprofundar seu conhecimento.\n\n"
+                "Retorne um objeto JSON exatamente com a seguinte estrutura:\n"
+                "{\n"
+                "  \"feedback\": \"O seu feedback pedagógico e conselhos de estudo (máximo 4 a 5 frases em português). Seja encorajador e aponte pontos fortes e fracos se houver.\",\n"
+                "  \"suggested_topics\": [\"Tópico 1\", \"Tópico 2\", \"Tópico 3\"]\n"
+                "}\n\n"
+                "Retorne estritamente o JSON válido no formato solicitado, sem textos adicionais antes ou depois.\n\n"
+                f"Resumo do Aluno:\n{content}"
+            )
+            
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json"
+                ),
+            )
+            
+            import json
+            data = json.loads(response.text)
+            
+            feedback_text = data.get("feedback", "").strip()
+            suggested_topics_list = data.get("suggested_topics", [])
+            
+            if not isinstance(suggested_topics_list, list):
+                suggested_topics_list = []
+                
+            summary.ai_feedback = feedback_text
+            summary.suggested_topics = suggested_topics_list
+            summary.is_processed_by_ai = True
+            summary.save()
+            
+            serializer = self.get_serializer(summary)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            return Response(
+                {"error": f"Erro de comunicação com o Gemini: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 class WeeklySummaryViewSet(viewsets.ModelViewSet):
     serializer_class = WeeklySummarySerializer
     permission_classes = [IsAuthenticated]

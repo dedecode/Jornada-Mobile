@@ -21,6 +21,7 @@ export default function BottomTabNavigator() {
                 },
                 tabBarActiveTintColor: '#5a3cf3',
                 tabBarInactiveTintColor: 'gray',
+                headerShown: false,
             })}
         >
             <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Início' }} />

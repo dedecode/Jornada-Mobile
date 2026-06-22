@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Alterar para o IP da sua máquina se for rodar no dispositivo físico (ex: 192.168.1.100)
 
-const API_URL = 'http://192.168.0.100:8000/api/';
+const API_URL = 'http://192.168.0.102:8000/api/';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -58,8 +58,14 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        // Se o erro for 401 (Unauthorized) e não for uma tentativa de retry
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // Se o erro for 401 (Unauthorized), não for uma tentativa de retry e não for rota de auth
+        const isAuthRoute = originalRequest?.url && (
+            originalRequest.url.includes('users/login') ||
+            originalRequest.url.includes('users/register') ||
+            originalRequest.url.includes('users/token/refresh')
+        );
+
+        if (error.response?.status === 401 && !originalRequest?._retry && !isAuthRoute) {
             if (isRefreshing) {
                 return new Promise((resolve, reject) => {
                     failedQueue.push({ resolve, reject });

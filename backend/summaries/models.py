@@ -12,6 +12,8 @@ class DailySummary(models.Model):
     photo = models.ImageField(upload_to='daily_summaries/photos/', blank=True, null=True)
     date = models.DateField(default=date.today)
     
+    category = models.CharField(max_length=100, default='Outros')
+    
     # IA integration fields
     is_processed_by_ai = models.BooleanField(default=False, null=True, blank=True)
     ai_feedback = models.TextField(blank=True, null=True)

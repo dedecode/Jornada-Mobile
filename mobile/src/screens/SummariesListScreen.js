@@ -13,9 +13,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api, { getImageUrl } from '../services/api';
 
-export default function SummariesListScreen({ navigation }) {
+export default function SummariesListScreen({ route, navigation }) {
     const [notes, setNotes] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [activeCategory, setActiveCategory] = useState(null);
+
+    useEffect(() => {
+        if (route.params?.category) {
+            setActiveCategory(route.params.category);
+        } else {
+            setActiveCategory(null);
+        }
+    }, [route.params?.category]);
 
     const fetchNotes = async () => {
         try {
@@ -77,7 +86,12 @@ export default function SummariesListScreen({ navigation }) {
                 </TouchableOpacity>
             </View>
             
-            <Text style={styles.date}>Estudado em: {item.date}</Text>
+            <View style={styles.metaRow}>
+                <Text style={styles.date}>Estudado em: {item.date}</Text>
+                <View style={styles.categoryBadgeCard}>
+                    <Text style={styles.categoryBadgeCardText}>{item.category || 'Outros'}</Text>
+                </View>
+            </View>
             
             {item.photo && (
                 <Image source={{ uri: getImageUrl(item.photo) }} style={styles.image} />
@@ -96,6 +110,10 @@ export default function SummariesListScreen({ navigation }) {
         </TouchableOpacity>
     );
 
+    const filteredNotes = activeCategory 
+        ? notes.filter(note => (note.category || 'Outros') === activeCategory)
+        : notes;
+
     return (
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
             <View style={styles.topBar}>
@@ -108,13 +126,32 @@ export default function SummariesListScreen({ navigation }) {
                 </TouchableOpacity>
             </View>
 
+            {/* Chip de Filtro Ativo */}
+            {activeCategory && (
+                <View style={styles.filterContainer}>
+                    <View style={styles.filterChip}>
+                        <Ionicons name="funnel-outline" size={14} color="#5a3cf3" style={{ marginRight: 6 }} />
+                        <Text style={styles.filterText}>Trilha: {activeCategory}</Text>
+                        <TouchableOpacity 
+                            style={styles.clearFilterBtn} 
+                            onPress={() => {
+                                setActiveCategory(null);
+                                navigation.setParams({ category: undefined });
+                            }}
+                        >
+                            <Ionicons name="close" size={16} color="#5a3cf3" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
             {loading ? (
                 <View style={styles.loader}>
                     <ActivityIndicator size="large" color="#5a3cf3" />
                 </View>
             ) : (
                 <FlatList
-                    data={notes}
+                    data={filteredNotes}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderItem}
                     contentContainerStyle={styles.listContainer}
@@ -122,8 +159,16 @@ export default function SummariesListScreen({ navigation }) {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="document-text-outline" size={60} color="#b1b1b8" />
-                            <Text style={styles.emptyText}>Nenhuma anotação criada.</Text>
-                            <Text style={styles.emptySub}>Comece criando uma anotação de estudos!</Text>
+                            <Text style={styles.emptyText}>
+                                {activeCategory 
+                                    ? `Nenhum resumo na trilha "${activeCategory}"`
+                                    : "Nenhuma anotação criada."}
+                            </Text>
+                            <Text style={styles.emptySub}>
+                                {activeCategory
+                                    ? "Comece criando um resumo nesta trilha!"
+                                    : "Comece criando uma anotação de estudos!"}
+                            </Text>
                         </View>
                     }
                 />
@@ -153,7 +198,7 @@ const styles = StyleSheet.create({
         color: '#1a1a24',
     },
     loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    listContainer: { padding: 16, pb: 40 },
+    listContainer: { padding: 16, paddingBottom: 40 },
     card: {
         backgroundColor: '#ffffff',
         padding: 16,
@@ -183,10 +228,26 @@ const styles = StyleSheet.create({
     deleteButton: {
         padding: 4,
     },
+    metaRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
     date: { 
         fontSize: 12, 
-        color: '#767680', 
-        marginBottom: 12,
+        color: '#767680',
+    },
+    categoryBadgeCard: {
+        backgroundColor: '#f3f4f6',
+        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    categoryBadgeCardText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#4b5563',
     },
     image: { 
         width: '100%', 
@@ -233,5 +294,30 @@ const styles = StyleSheet.create({
         color: '#767680', 
         marginTop: 8,
         textAlign: 'center',
+    },
+    filterContainer: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 4,
+        flexDirection: 'row',
+    },
+    filterChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#eeebff',
+        borderRadius: 20,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: '#d8b4fe',
+    },
+    filterText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#5a3cf3',
+        marginRight: 6,
+    },
+    clearFilterBtn: {
+        padding: 2,
     },
 });

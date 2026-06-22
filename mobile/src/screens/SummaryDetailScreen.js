@@ -28,9 +28,10 @@ export default function SummaryDetailScreen({ route, navigation }) {
     const [content, setContent] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     
-    // Estados do Gemini
+    // Estados do Gemini e IA Tutor
     const [isImproving, setIsImproving] = useState(false);
     const [improvedPreview, setImprovedPreview] = useState(null);
+    const [isRequestingAi, setIsRequestingAi] = useState(false);
 
     // Carrega a anotação
     const fetchNoteDetail = async () => {
@@ -88,7 +89,8 @@ export default function SummaryDetailScreen({ route, navigation }) {
         try {
             const response = await api.put(`summaries/daily/${noteId}/`, {
                 title: title.trim(),
-                content: content.trim()
+                content: content.trim(),
+                category: note?.category || 'Outros'
             });
             setNote(response.data);
             setIsEditing(false);
@@ -111,7 +113,6 @@ export default function SummaryDetailScreen({ route, navigation }) {
         try {
             const response = await api.post('summaries/daily/improve_content/', { content });
             if (response.data && response.data.improved_content) {
-                // Remove formatações markdown brutas
                 const cleanedText = response.data.improved_content
                     .replace(/\*\*/g, '')
                     .replace(/\*/g, '')
@@ -137,7 +138,8 @@ export default function SummaryDetailScreen({ route, navigation }) {
         try {
             const response = await api.put(`summaries/daily/${noteId}/`, {
                 title: title.trim(),
-                content: improvedPreview
+                content: improvedPreview,
+                category: note?.category || 'Outros'
             });
             setNote(response.data);
             setContent(improvedPreview);
@@ -148,6 +150,22 @@ export default function SummaryDetailScreen({ route, navigation }) {
             Alert.alert("Erro", "A IA gerou o texto, mas não conseguimos salvar no banco de dados.");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    // Solicitar Análise do Tutor de IA
+    const handleRequestAiFeedback = async () => {
+        setIsRequestingAi(true);
+        try {
+            const response = await api.post(`summaries/daily/${noteId}/generate_feedback/`);
+            setNote(response.data);
+            Alert.alert("Sucesso!", "Análise do Tutor de IA concluída com sucesso! ✨");
+        } catch (error) {
+            console.error("Erro ao gerar feedback do Tutor:", error);
+            const errMsg = error.response?.data?.error || "Não foi possível conectar com o Tutor de IA. Verifique as configurações.";
+            Alert.alert("Erro no Tutor", errMsg);
+        } finally {
+            setIsRequestingAi(false);
         }
     };
 
@@ -228,6 +246,11 @@ export default function SummaryDetailScreen({ route, navigation }) {
                             </View>
                         ) : (
                             <View>
+                                <View style={styles.categoryBadgeContainer}>
+                                    <View style={styles.categoryBadgeDetail}>
+                                        <Text style={styles.categoryBadgeDetailText}>{note?.category || 'Outros'}</Text>
+                                    </View>
+                                </View>
                                 <Text style={styles.noteTitle}>{note?.title}</Text>
                                 <Text style={styles.noteDate}>Estudado em: {note?.date}</Text>
                                 <View style={styles.divider} />
@@ -235,6 +258,62 @@ export default function SummaryDetailScreen({ route, navigation }) {
                             </View>
                         )}
                     </View>
+
+                    {/* Bloco de Feedback do Tutor de IA */}
+                    {!isEditing && !improvedPreview && (
+                        <View style={styles.aiFeedbackCard}>
+                            <View style={styles.aiFeedbackHeader}>
+                                <Ionicons name="sparkles" size={20} color="#a855f7" />
+                                <Text style={styles.aiFeedbackTitle}>Tutor de IA</Text>
+                            </View>
+
+                            {note?.is_processed_by_ai ? (
+                                <View>
+                                    <Text style={styles.aiFeedbackText}>{note.ai_feedback}</Text>
+                                    
+                                    <Text style={styles.suggestedTopicsTitle}>Próximos passos sugeridos:</Text>
+                                    {note.suggested_topics && note.suggested_topics.map((topic, index) => (
+                                        <View key={index} style={styles.topicRow}>
+                                            <Ionicons name="bulb-outline" size={16} color="#d97706" style={{ marginRight: 8 }} />
+                                            <Text style={styles.topicText}>{topic}</Text>
+                                        </View>
+                                    ))}
+
+                                    <TouchableOpacity 
+                                        style={styles.fullAnalysisBtn}
+                                        onPress={() => navigation.navigate('AISuggestions', { 
+                                            feedback: note.ai_feedback, 
+                                            suggestedTopics: note.suggested_topics 
+                                        })}
+                                    >
+                                        <Text style={styles.fullAnalysisBtnText}>Ver Análise em Tela Cheia</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <View style={styles.noAiContainer}>
+                                    <Text style={styles.noAiText}>
+                                        Você ainda não solicitou o feedback do Tutor de IA para este resumo.
+                                    </Text>
+                                    
+                                    <TouchableOpacity 
+                                        style={styles.requestAiBtn}
+                                        onPress={handleRequestAiFeedback}
+                                        disabled={isRequestingAi}
+                                        activeOpacity={0.8}
+                                    >
+                                        {isRequestingAi ? (
+                                            <ActivityIndicator size="small" color="#ffffff" />
+                                        ) : (
+                                            <>
+                                                <Ionicons name="sparkles-outline" size={18} color="#ffffff" style={{ marginRight: 8 }} />
+                                                <Text style={styles.requestAiBtnText}>Analisar com Tutor de IA</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+                    )}
 
                     {/* Área de Visualização do Aprimoramento da IA */}
                     {improvedPreview && (
@@ -346,7 +425,7 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '600',
     },
-    container: { padding: 16, pb: 40 },
+    container: { padding: 16, paddingBottom: 40 },
     noteImage: {
         width: '100%',
         height: 200,
@@ -361,6 +440,23 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#f1f1f4',
         marginBottom: 16,
+    },
+    categoryBadgeContainer: {
+        flexDirection: 'row',
+        marginBottom: 8,
+    },
+    categoryBadgeDetail: {
+        backgroundColor: '#eeebff',
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderWidth: 1,
+        borderColor: '#d8b4fe',
+    },
+    categoryBadgeDetailText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#5a3cf3',
     },
     noteTitle: {
         fontSize: 22,
@@ -462,7 +558,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
-    // Preview Card styles
     previewCard: {
         backgroundColor: '#faf5ff',
         borderRadius: 12,
@@ -518,6 +613,103 @@ const styles = StyleSheet.create({
     discardBtnText: {
         color: '#a855f7',
         fontSize: 13,
+        fontWeight: '600',
+    },
+
+    // AI Feedback card styles
+    aiFeedbackCard: {
+        backgroundColor: '#ffffff',
+        padding: 18,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#f1f1f4',
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    aiFeedbackHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    aiFeedbackTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#a855f7',
+        marginLeft: 8,
+    },
+    aiFeedbackText: {
+        fontSize: 14,
+        color: '#4b5563',
+        lineHeight: 22,
+        marginBottom: 16,
+    },
+    suggestedTopicsTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#1f2937',
+        marginBottom: 10,
+    },
+    topicRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+        backgroundColor: '#fdfbf7',
+        padding: 8,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#fef3c7',
+    },
+    topicText: {
+        fontSize: 13,
+        color: '#d97706',
+        fontWeight: '600',
+    },
+    fullAnalysisBtn: {
+        marginTop: 16,
+        backgroundColor: '#ffffff',
+        borderWidth: 1.5,
+        borderColor: '#a855f7',
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    fullAnalysisBtnText: {
+        color: '#a855f7',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    noAiContainer: {
+        alignItems: 'center',
+        paddingVertical: 10,
+    },
+    noAiText: {
+        fontSize: 14,
+        color: '#6b7280',
+        textAlign: 'center',
+        lineHeight: 20,
+        marginBottom: 16,
+    },
+    requestAiBtn: {
+        backgroundColor: '#a855f7',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 10,
+        shadowColor: '#a855f7',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 3,
+    },
+    requestAiBtnText: {
+        color: '#ffffff',
+        fontSize: 14,
         fontWeight: '600',
     },
 });

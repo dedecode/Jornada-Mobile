@@ -6,6 +6,7 @@ import CreateSummaryScreen from '../screens/CreateSummaryScreen';
 import SummaryDetailScreen from '../screens/SummaryDetailScreen';
 import ActiveRecallQuizScreen from '../screens/ActiveRecallQuizScreen';
 import AISuggestionsScreen from '../screens/AISuggestionsScreen';
+import StudentStatsScreen from '../screens/StudentStatsScreen';
 import BottomTabNavigator from './BottomTabNavigator';
 
 const Stack = createNativeStackNavigator();
@@ -19,6 +20,7 @@ export default function MainStackNavigator() {
             <Stack.Screen name="SummaryDetail" component={SummaryDetailScreen} options={{ headerShown: false }} />
             <Stack.Screen name="ActiveRecallQuiz" component={ActiveRecallQuizScreen} options={{ headerShown: false }} />
             <Stack.Screen name="AISuggestions" component={AISuggestionsScreen} options={{ title: 'Seu Tutor' }} />
+            <Stack.Screen name="StudentStats" component={StudentStatsScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
     );
 }

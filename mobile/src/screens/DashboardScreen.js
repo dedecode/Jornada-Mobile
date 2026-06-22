@@ -1,56 +1,103 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AuthContext } from '../contexts/AuthContext';
+import api from '../services/api';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen({ navigation }) {
-    // Dados estáticos das trilhas baseados no mockup do Figma
-    const trilhas = [
-        { id: 1, title: 'Desenvolvimento Web', icon: 'code-slash', color: '#5a3cf3', bgColor: '#eeebff', count: 12 },
-        { id: 2, title: 'Ciência de Dados', icon: 'bar-chart', color: '#10b981', bgColor: '#e6fcf5', count: 8 },
-        { id: 3, title: 'Inglês', icon: 'language', color: '#f59e0b', bgColor: '#fffbeb', count: 6 },
-        { id: 4, title: 'Estruturas de Dados', icon: 'cube', color: '#3b82f6', bgColor: '#eff6ff', count: 5 },
+    const { user } = useContext(AuthContext);
+    const [notes, setNotes] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const capitalize = (str) => {
+        if (!str) return '';
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    };
+
+    const fetchDashboardData = async () => {
+        try {
+            const response = await api.get('summaries/daily/');
+            const data = response.data.results ? response.data.results : response.data;
+            setNotes(data);
+        } catch (error) {
+            console.error("Erro ao carregar dados do dashboard:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            fetchDashboardData();
+        });
+        return unsubscribe;
+    }, [navigation]);
+
+    // Definição das trilhas/categorias do Figma com contagem dinâmica
+    const categoriesMetadata = [
+        { id: 'web', title: 'Desenvolvimento Web', icon: 'code-slash', color: '#5a3cf3', bgColor: '#eeebff' },
+        { id: 'data', title: 'Ciência de Dados', icon: 'bar-chart', color: '#10b981', bgColor: '#e6fcf5' },
+        { id: 'english', title: 'Inglês', icon: 'language', color: '#f59e0b', bgColor: '#fffbeb' },
+        { id: 'structures', title: 'Estruturas de Dados', icon: 'cube', color: '#3b82f6', bgColor: '#eff6ff' },
+        { id: 'others', title: 'Outros', icon: 'folder-open', color: '#6b7280', bgColor: '#f3f4f6' },
     ];
+
+    // Computa dinamicamente a quantidade de temas para cada categoria
+    const getCountForCategory = (catTitle) => {
+        return notes.filter(note => (note.category || 'Outros') === catTitle).length;
+    };
+
+    // Resumo recente (o mais recente da lista)
+    const recentSummary = notes.length > 0 ? notes[0] : null;
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-                {/* Header "Olá, Lara!" */}
+                {/* Header Dinâmico */}
                 <View style={styles.header}>
                     <View>
-                        <Text style={styles.welcomeText}>Olá, Lara! 👋</Text>
+                        <Text style={styles.welcomeText}>Olá, {user?.username ? capitalize(user.username) : 'Estudante'}! 👋</Text>
                         <Text style={styles.subWelcomeText}>Bora continuar aprendendo hoje?</Text>
                     </View>
-                    <TouchableOpacity style={styles.notificationButton}>
-                        <Ionicons name="notifications-outline" size={24} color="#1a1a24" />
-                        <View style={styles.badge} />
-                    </TouchableOpacity>
                 </View>
 
                 {/* Seção Suas Trilhas */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Suas trilhas</Text>
-                    <TouchableOpacity>
-                        <Text style={styles.seeAllText}>Ver todas</Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('SummariesList')}>
+                        <Text style={styles.seeAllText}>Ver anotações</Text>
                     </TouchableOpacity>
                 </View>
 
-                {trilhas.map((trilha) => (
-                    <TouchableOpacity key={trilha.id} style={styles.trilhaCard} activeOpacity={0.7}>
-                        <View style={styles.trilhaLeft}>
-                            <View style={[styles.iconWrapper, { backgroundColor: trilha.bgColor }]}>
-                                <Ionicons name={trilha.icon} size={20} color={trilha.color} />
-                            </View>
-                            <View style={styles.trilhaTextWrapper}>
-                                <Text style={styles.trilhaTitle}>{trilha.title}</Text>
-                                <Text style={styles.trilhaCount}>{trilha.count} temas</Text>
-                            </View>
-                        </View>
-                        <Ionicons name="ellipsis-horizontal" size={20} color="#b1b1b8" />
-                    </TouchableOpacity>
-                ))}
+                {loading ? (
+                    <ActivityIndicator size="small" color="#5a3cf3" style={{ marginVertical: 20 }} />
+                ) : (
+                    categoriesMetadata.map((trilha) => {
+                        const count = getCountForCategory(trilha.title);
+                        return (
+                            <TouchableOpacity 
+                                key={trilha.id} 
+                                style={styles.trilhaCard} 
+                                activeOpacity={0.7}
+                                onPress={() => navigation.navigate('SummariesList', { category: trilha.title })}
+                            >
+                                <View style={styles.trilhaLeft}>
+                                    <View style={[styles.iconWrapper, { backgroundColor: trilha.bgColor }]}>
+                                        <Ionicons name={trilha.icon} size={20} color={trilha.color} />
+                                    </View>
+                                    <View style={styles.trilhaTextWrapper}>
+                                        <Text style={styles.trilhaTitle}>{trilha.title}</Text>
+                                        <Text style={styles.trilhaCount}>{count} {count === 1 ? 'tema' : 'temas'}</Text>
+                                    </View>
+                                </View>
+                                <Ionicons name="chevron-forward" size={18} color="#b1b1b8" />
+                            </TouchableOpacity>
+                        );
+                    })
+                )}
 
                 {/* Seção Ações Rápidas */}
                 <Text style={[styles.sectionTitle, { marginTop: 24, marginBottom: 12 }]}>Ações rápidas</Text>
@@ -79,37 +126,42 @@ export default function DashboardScreen({ navigation }) {
                         <Text style={styles.actionText}>Tutor de IA</Text>
                     </TouchableOpacity>
 
-                    {/* Botão 3: Nova trilha */}
-                    <TouchableOpacity 
-                        style={styles.actionCard} 
-                        activeOpacity={0.8}
-                        onPress={() => alert('Nova trilha: Funcionalidade de modelagem futura!')}
-                    >
-                        <View style={[styles.actionIconWrapper, { backgroundColor: '#eef2f6' }]}>
-                            <Ionicons name="folder-open" size={20} color="#64748b" />
-                        </View>
-                        <Text style={styles.actionText}>Nova trilha</Text>
-                    </TouchableOpacity>
                 </View>
 
                 {/* Seção Recentes */}
                 <Text style={[styles.sectionTitle, { marginTop: 24, marginBottom: 12 }]}>Recentes</Text>
-                <TouchableOpacity 
-                    style={styles.recentCard} 
-                    activeOpacity={0.8}
-                    onPress={() => navigation.navigate('SummariesList')}
-                >
-                    <View style={styles.recentLeft}>
-                        <View style={styles.recentIconWrapper}>
-                            <Ionicons name="document-text-outline" size={22} color="#5a3cf3" />
+                {loading ? (
+                    <ActivityIndicator size="small" color="#5a3cf3" style={{ marginVertical: 20 }} />
+                ) : recentSummary ? (
+                    <TouchableOpacity 
+                        style={styles.recentCard} 
+                        activeOpacity={0.8}
+                        onPress={() => navigation.navigate('SummaryDetail', { noteId: recentSummary.id })}
+                    >
+                        <View style={styles.recentLeft}>
+                            <View style={styles.recentIconWrapper}>
+                                <Ionicons name="document-text-outline" size={22} color="#5a3cf3" />
+                            </View>
+                            <View style={styles.recentTextWrapper}>
+                                <Text style={styles.recentTitle}>{recentSummary.title}</Text>
+                                <Text style={styles.recentMeta}>{recentSummary.category} • {recentSummary.date}</Text>
+                            </View>
                         </View>
-                        <View style={styles.recentTextWrapper}>
-                            <Text style={styles.recentTitle}>APIs REST</Text>
-                            <Text style={styles.recentMeta}>Resumo • Hoje</Text>
+                        <Ionicons name="chevron-forward" size={18} color="#b1b1b8" />
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity 
+                        style={[styles.recentCard, { justifyContent: 'center', paddingVertical: 24, borderStyle: 'dashed' }]} 
+                        activeOpacity={0.8}
+                        onPress={() => navigation.navigate('CreateSummary')}
+                    >
+                        <View style={{ alignItems: 'center' }}>
+                            <Ionicons name="document-text-outline" size={32} color="#b1b1b8" style={{ marginBottom: 8 }} />
+                            <Text style={[styles.recentTitle, { color: '#6b7280', fontSize: 14 }]}>Nenhum resumo criado ainda</Text>
+                            <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 4 }}>Toque aqui para começar a estudar!</Text>
                         </View>
-                    </View>
-                    <Ionicons name="ellipsis-horizontal" size={20} color="#b1b1b8" />
-                </TouchableOpacity>
+                    </TouchableOpacity>
+                )}
 
             </ScrollView>
         </SafeAreaView>
@@ -137,15 +189,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#e5e7eb',
-    },
-    badge: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#ef4444'
     },
     sectionHeader: {
         flexDirection: 'row',
@@ -179,7 +222,7 @@ const styles = StyleSheet.create({
     trilhaCount: { fontSize: 13, color: '#6b7280', marginTop: 2 },
     actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
     actionCard: {
-        width: (width - 60) / 3,
+        width: (width - 56) / 2,
         backgroundColor: '#ffffff',
         padding: 16,
         borderRadius: 16,
